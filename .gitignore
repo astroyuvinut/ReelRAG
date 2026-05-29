@@ -1,0 +1,50 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+env/
+*.egg-info/
+
+# secrets
+.env
+.env.local
+*.env.*.local
+!.env.example
+
+# chromadb store (regenerated at runtime)
+chroma_store/
+
+# whisper models
+*.pt
+
+# node
+node_modules/
+dist/
+.cache/
+.parcel-cache/
+.vite/
+
+# logs
+*.log
+backend.log
+backend.err.log
+dev.log
+dev.err.log
+install.log
+
+# ide
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# os
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# personal notes / one-off scripts (do not push)
+NOTES_FOR_YOU.md
+init-repo.ps1
