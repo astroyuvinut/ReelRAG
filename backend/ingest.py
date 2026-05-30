@@ -90,9 +90,7 @@ def get_youtube_transcript(video_id):
     return ""
 
 
-# instagram needs login cookies for most reels. prefer a cookies.txt file, fall
-# back to pulling them live from a browser. read this at call-time, not import,
-# so .env that loads after this module still gets picked up.
+# instagram needs login cookies for most reels. read at call-time so a late .env still applies.
 def _ig_cookie_opts():
     cookie_file = os.getenv("IG_COOKIES_FILE", "").strip()
     if cookie_file and os.path.exists(cookie_file):
@@ -123,8 +121,7 @@ def get_metadata(url):
             info = ydl.extract_info(url, download=False)
         return info or {}
     except Exception as e:
-        # instagram login/rate-limit, geo-block, deleted post, etc.
-        # degrade gracefully instead of 500-ing the whole /ingest call.
+        # instagram login/rate-limit, dead post, whatever. don't 500 the whole call.
         log.warning("metadata extract failed for %s: %s", url, e)
         return {}
 
@@ -136,10 +133,8 @@ def _instagram_shortcode(url):
 
 
 def _instagram_views(url):
-    # yt-dlp doesn't hand back instagram view counts, so optionally try
-    # instaloader as a fallback. off by default: instagram currently 400s
-    # instaloader's graphql, so leaving it on just adds a slow failing call.
-    # flip IG_FETCH_VIEWS=1 in .env to try it. returns None on any hiccup.
+    # last-ditch try at instagram view counts. off by default since instagram
+    # currently 400s instaloader anyway. set IG_FETCH_VIEWS=1 to attempt it.
     if os.getenv("IG_FETCH_VIEWS", "").strip() not in ("1", "true", "yes"):
         return None
     shortcode = _instagram_shortcode(url)
@@ -159,8 +154,7 @@ def _instagram_views(url):
             jar.load(ignore_discard=True, ignore_expires=True)
             for c in jar:
                 loader.context._session.cookies.set_cookie(c)
-            # instagram only authorizes graphql once it sees a real logged-in
-            # session, so confirm the cookies map to a user before querying.
+            # graphql only works on a logged-in session, so check the cookies first
             who = loader.test_login()
             if who:
                 loader.context.username = who
@@ -228,8 +222,7 @@ def normalize_metadata(info, url):
     comments = info.get("comment_count") or 0
     followers = info.get("channel_follower_count") or info.get("uploader_follower_count") or 0
 
-    # yt-dlp leaves instagram views blank, so try instaloader to fill it in.
-    # if that fails too, views stays 0 and engagement just shows N/A as before.
+    # yt-dlp leaves instagram views blank; try to fill it in, else it stays N/A.
     if views == 0 and is_instagram(url):
         views = _instagram_views(url) or 0
     duration = info.get("duration") or 0
@@ -247,9 +240,8 @@ def normalize_metadata(info, url):
     # total interactions is always comparable across platforms
     total_interactions = likes + comments
 
-    # engagement = (likes + comments) / views * 100.
-    # instagram doesn't expose view_count via yt-dlp, so views is often 0 there.
-    # use None to mean "not computable" rather than a misleading 0.00%.
+    # engagement = (likes + comments) / views. instagram hides views, so when
+    # they're missing we use None (shows as N/A) instead of a fake 0.00%.
     eng = round(total_interactions / views * 100, 4) if views > 0 else None
 
     thumb = info.get("thumbnail") or ""
