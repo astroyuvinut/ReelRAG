@@ -167,7 +167,6 @@ export default function App() {
           </span>
         </div>
         <nav className="flex items-center gap-2 md:gap-6 text-mono text-[10px] tracking-widest uppercase text-bone/60">
-          <a href="#engine"   className="hover:text-bone transition-colors">Engine</a>
           <a href="#stats"    className="hover:text-bone transition-colors hidden md:inline">Telemetry</a>
           <a href="#analyze"  className="hover:text-bone transition-colors">Run</a>
           <a href="https://github.com" target="_blank" rel="noreferrer" className="btn-ghost">
@@ -184,7 +183,7 @@ export default function App() {
         <div className="relative z-10 max-w-6xl">
           <div className="text-mono text-[10px] tracking-ultra text-red mb-6 flex items-center gap-3 animate-fade-in">
             <span className="w-8 h-px bg-red" />
-            <span>V1.0 // BUILT IN A WEEK</span>
+            <span>V1.0 // CRAFTED BY YUVA</span>
           </div>
 
           <h1 className="text-display font-bold leading-[0.82] tracking-tightest text-[clamp(3.5rem,11vw,11rem)] uppercase">
@@ -207,7 +206,7 @@ export default function App() {
               <Zap size={14} />
               <span>Run a Comparison</span>
             </a>
-            <a href="#engine" className="text-mono text-[10px] tracking-ultra text-bone/50 hover:text-bone transition-colors">
+            <a href="#analyze" className="text-mono text-[10px] tracking-ultra text-bone/50 hover:text-bone transition-colors">
               See how it works →
             </a>
           </div>
