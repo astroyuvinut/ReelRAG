@@ -13,6 +13,14 @@ env/
 *.env.*.local
 !.env.example
 
+# instagram login cookies (never commit these)
+*cookies*.txt
+ig_cookies.txt
+
+# one-off test scripts
+backend/_ig_test.py
+backend/_il_test.py
+
 # chromadb store (regenerated at runtime)
 chroma_store/
 
