@@ -37,6 +37,10 @@ Your job is to help creators compare and understand them.
 Rules:
 - Always say which video (A or B) you're pulling from.
 - Mention engagement rate when talking about performance.
+- Engagement rate needs views, and Instagram doesn't give us views, so it shows
+  "N/A". Don't call that 0% or say the videos are "equal" because both read 0 --
+  that's just missing data. When the rate is N/A, compare total interactions
+  (likes + comments) instead and mention views aren't available.
 - Be specific and actionable, not vague.
 - If the chunks don't really answer the question, say so. Don't make stuff up.
 - Keep it readable: short paragraphs or bullets.
@@ -52,31 +56,42 @@ def get_memory(session_id):
     return sessions[session_id]
 
 
+def _eng_label(meta):
+    # -1.0 sentinel means views weren't available (e.g. instagram)
+    eng = meta.get("engagement_rate", -1)
+    ti = meta.get("total_interactions", 0)
+    if eng is not None and eng >= 0:
+        return f"Engagement: {eng:.2f}%"
+    return f"Engagement: N/A (views unavailable) | {ti:,} total interactions"
+
+
 def build_context(hits):
     parts = []
     for h in hits:
         label = h["video_label"]
         idx = h["chunk_index"]
-        eng = h["metadata"].get("engagement_rate", 0)
         title = h["metadata"].get("title", "")
         parts.append(
-            f"[Video {label} | Chunk {idx} | \"{title}\" | Engagement: {eng:.2f}%]\n{h['text']}"
+            f"[Video {label} | Chunk {idx} | \"{title}\" | {_eng_label(h['metadata'])}]\n{h['text']}"
         )
     return "\n\n---\n\n".join(parts)
 
 
 def format_citations(hits):
-    return [
-        {
+    out = []
+    for h in hits:
+        eng = h["metadata"].get("engagement_rate", -1)
+        out.append({
             "video_label": h["video_label"],
             "chunk_index": h["chunk_index"],
             "title": h["metadata"].get("title", ""),
             "creator": h["metadata"].get("creator", ""),
-            "engagement_rate": h["metadata"].get("engagement_rate", 0),
+            # convert sentinel back to null so the frontend shows N/A, not -1
+            "engagement_rate": eng if (eng is not None and eng >= 0) else None,
+            "total_interactions": h["metadata"].get("total_interactions", 0),
             "distance": round(h["distance"], 4),
-        }
-        for h in hits
-    ]
+        })
+    return out
 
 
 def get_llm():
