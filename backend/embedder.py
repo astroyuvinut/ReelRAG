@@ -82,12 +82,15 @@ def embed_and_store(label, transcript, meta):
         vec = model.encode(chunk, normalize_embeddings=True).tolist()
         docs.append(chunk)
         embs.append(vec)
+        # chromadb can't store None, so -1.0 is our "not computable" sentinel
+        eng = meta.get("engagement_rate")
         metas.append({
             "video_label": label,
             "chunk_index": i,
             "source_url": meta.get("source_url", ""),
             "creator": meta.get("creator", ""),
-            "engagement_rate": float(meta.get("engagement_rate", 0.0)),
+            "engagement_rate": float(eng) if eng is not None else -1.0,
+            "total_interactions": int(meta.get("total_interactions", 0)),
             "title": meta.get("title", ""),
             "platform": meta.get("platform", ""),
         })

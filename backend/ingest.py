@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import logging
 from urllib.parse import urlparse
+from http.cookiejar import MozillaCookieJar
 
 import yt_dlp
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -89,58 +90,148 @@ def get_youtube_transcript(video_id):
     return ""
 
 
-def get_metadata(url):
+# instagram needs login cookies for most reels. prefer a cookies.txt file, fall
+# back to pulling them live from a browser. read this at call-time, not import,
+# so .env that loads after this module still gets picked up.
+def _ig_cookie_opts():
+    cookie_file = os.getenv("IG_COOKIES_FILE", "").strip()
+    if cookie_file and os.path.exists(cookie_file):
+        return {"cookiefile": cookie_file}
+    browser = os.getenv("IG_COOKIES_BROWSER", "").strip()
+    if browser:
+        return {"cookiesfrombrowser": (browser,)}
+    return {}
+
+
+def _ydl_opts(url, extra=None):
     opts = {
         "quiet": True,
         "no_warnings": True,
-        "skip_download": True,
-        "extract_flat": False,
     }
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=False)
-    return info or {}
+    # only instagram needs cookies; youtube works anonymously
+    if is_instagram(url):
+        opts.update(_ig_cookie_opts())
+    if extra:
+        opts.update(extra)
+    return opts
+
+
+def get_metadata(url):
+    opts = _ydl_opts(url, {"skip_download": True, "extract_flat": False})
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+        return info or {}
+    except Exception as e:
+        # instagram login/rate-limit, geo-block, deleted post, etc.
+        # degrade gracefully instead of 500-ing the whole /ingest call.
+        log.warning("metadata extract failed for %s: %s", url, e)
+        return {}
+
+
+def _instagram_shortcode(url):
+    # pull the shortcode out of /reel/XXXX/, /p/XXXX/, /tv/XXXX/
+    m = re.search(r"/(?:reel|reels|p|tv)/([A-Za-z0-9_-]+)", url)
+    return m.group(1) if m else None
+
+
+def _instagram_views(url):
+    # yt-dlp doesn't hand back instagram view counts, so optionally try
+    # instaloader as a fallback. off by default: instagram currently 400s
+    # instaloader's graphql, so leaving it on just adds a slow failing call.
+    # flip IG_FETCH_VIEWS=1 in .env to try it. returns None on any hiccup.
+    if os.getenv("IG_FETCH_VIEWS", "").strip() not in ("1", "true", "yes"):
+        return None
+    shortcode = _instagram_shortcode(url)
+    if not shortcode:
+        return None
+    try:
+        import instaloader
+    except ImportError:
+        return None
+    try:
+        # fail fast instead of retrying a blocked endpoint several times
+        loader = instaloader.Instaloader(quiet=True, max_connection_attempts=1)
+        # reuse the same cookies.txt we feed yt-dlp, if it's around
+        cookie_file = os.getenv("IG_COOKIES_FILE", "").strip()
+        if cookie_file and os.path.exists(cookie_file):
+            jar = MozillaCookieJar(cookie_file)
+            jar.load(ignore_discard=True, ignore_expires=True)
+            for c in jar:
+                loader.context._session.cookies.set_cookie(c)
+            # instagram only authorizes graphql once it sees a real logged-in
+            # session, so confirm the cookies map to a user before querying.
+            who = loader.test_login()
+            if who:
+                loader.context.username = who
+        post = instaloader.Post.from_shortcode(loader.context, shortcode)
+        return post.video_view_count or post.video_play_count or None
+    except Exception as e:
+        log.warning("instaloader view fetch failed for %s: %s", url, e)
+        return None
+
+
+# cache the model so we don't reload weights on every video
+_FW_MODEL = None
+
+
+def _get_fw_model():
+    global _FW_MODEL
+    if _FW_MODEL is None:
+        from faster_whisper import WhisperModel
+        size = os.getenv("WHISPER_MODEL", "base")
+        # int8 on cpu keeps it fast and light; no gpu/torch needed
+        _FW_MODEL = WhisperModel(size, device="cpu", compute_type="int8")
+    return _FW_MODEL
 
 
 def whisper_transcribe(url):
-    # whisper needs ffmpeg. bail out cleanly if not installed.
+    # audio extraction needs ffmpeg. bail out cleanly if not installed.
     if shutil.which("ffmpeg") is None:
-        log.warning("ffmpeg not on PATH. skipping whisper. install with choco/brew/apt.")
+        log.warning("ffmpeg not on PATH. skipping transcription. install ffmpeg first.")
         return ""
 
     try:
-        import whisper
+        from faster_whisper import WhisperModel  # noqa: F401
     except ImportError:
-        log.warning("openai-whisper not installed. skipping audio transcription.")
+        log.warning("faster-whisper not installed. skipping audio transcription.")
         return ""
 
-    with tempfile.TemporaryDirectory() as tmp:
-        opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "format": "bestaudio/best",
-            "outtmpl": os.path.join(tmp, "audio.%(ext)s"),
-            "postprocessors": [{
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "128",
-            }],
-        }
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([url])
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            opts = _ydl_opts(url, {
+                "format": "bestaudio/best",
+                "outtmpl": os.path.join(tmp, "audio.%(ext)s"),
+                "postprocessors": [{
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "128",
+                }],
+            })
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.download([url])
 
-        files = [f for f in os.listdir(tmp) if f.endswith(".mp3")]
-        if not files:
-            return ""
-        model = whisper.load_model("base")
-        result = model.transcribe(os.path.join(tmp, files[0]), fp16=False)
-        return result.get("text", "")
+            files = [f for f in os.listdir(tmp) if f.endswith(".mp3")]
+            if not files:
+                return ""
+            model = _get_fw_model()
+            segments, _ = model.transcribe(os.path.join(tmp, files[0]))
+            return " ".join(seg.text.strip() for seg in segments).strip()
+    except Exception as e:
+        log.warning("transcription failed for %s: %s", url, e)
+        return ""
 
 
 def normalize_metadata(info, url):
-    views = info.get("view_count") or 0
+    views = info.get("view_count") or info.get("play_count") or 0
     likes = info.get("like_count") or 0
     comments = info.get("comment_count") or 0
     followers = info.get("channel_follower_count") or info.get("uploader_follower_count") or 0
+
+    # yt-dlp leaves instagram views blank, so try instaloader to fill it in.
+    # if that fails too, views stays 0 and engagement just shows N/A as before.
+    if views == 0 and is_instagram(url):
+        views = _instagram_views(url) or 0
     duration = info.get("duration") or 0
 
     raw_date = info.get("upload_date") or ""
@@ -153,8 +244,13 @@ def normalize_metadata(info, url):
     if isinstance(tags, list):
         tags = [str(t) for t in tags[:20]]
 
-    # engagement = (likes + comments) / views * 100
-    eng = round((likes + comments) / views * 100, 4) if views > 0 else 0.0
+    # total interactions is always comparable across platforms
+    total_interactions = likes + comments
+
+    # engagement = (likes + comments) / views * 100.
+    # instagram doesn't expose view_count via yt-dlp, so views is often 0 there.
+    # use None to mean "not computable" rather than a misleading 0.00%.
+    eng = round(total_interactions / views * 100, 4) if views > 0 else None
 
     thumb = info.get("thumbnail") or ""
     if not thumb and isinstance(info.get("thumbnails"), list) and info["thumbnails"]:
@@ -172,7 +268,8 @@ def normalize_metadata(info, url):
         "duration": duration,
         "upload_date": upload_date,
         "hashtags": tags,
-        "engagement_rate": eng,
+        "engagement_rate": eng,  # None when views unavailable (e.g. instagram)
+        "total_interactions": total_interactions,
         "platform": "youtube" if is_youtube(url) else "instagram",
     }
 
