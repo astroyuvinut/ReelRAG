@@ -7,9 +7,9 @@ I built this because most "AI video analyzers" out there just summarize one vide
 ## What it actually does
 
 1. You give it two video URLs.
-2. It pulls the transcript (YouTube captions API if available, otherwise Whisper on the audio).
+2. It pulls the transcript (YouTube captions API if available, otherwise faster-whisper on the audio).
 3. It pulls real metadata via yt-dlp: views, likes, comments, follower count, hashtags, upload date, duration.
-4. Computes engagement rate `(likes + comments) / views * 100`.
+4. Computes engagement rate `(likes + comments) / views * 100`. Instagram doesn't hand back view counts, so reels show N/A there and get compared by total interactions (likes + comments) instead.
 5. Splits each transcript into ~300-word chunks with 50-word overlap.
 6. Embeds the chunks locally with BGE-small (no API calls, no cost).
 7. Drops them into ChromaDB.
@@ -23,16 +23,16 @@ I built this because most "AI video analyzers" out there just summarize one vide
 - Embeddings: BGE-small via sentence-transformers (runs on your CPU)
 - Vector DB: ChromaDB, local
 - Orchestration: LangChain
-- Transcripts: youtube-transcript-api + yt-dlp + Whisper
+- Transcripts: youtube-transcript-api + yt-dlp + faster-whisper
 
 All free. Zero paid services to start.
 
 ## Setup
 
 You'll need:
-- Python 3.10, 3.11, or 3.12 (3.13 works but you'll skip Whisper, which only matters for Instagram videos without captions)
+- Python 3.10+ (3.13 is fine, faster-whisper runs there)
 - Node 18+
-- ffmpeg on PATH if you want Instagram support (`winget install ffmpeg` on Windows, `brew install ffmpeg` on mac, `apt install ffmpeg` on Linux)
+- ffmpeg on PATH for Instagram transcription (`winget install Gyan.FFmpeg` on Windows, `brew install ffmpeg` on mac, `apt install ffmpeg` on Linux). Open a fresh terminal after installing so PATH picks it up.
 - A Gemini API key from https://aistudio.google.com/app/apikey (free tier is enough)
 
 ### Backend
@@ -54,6 +54,18 @@ Make a `.env` file in `backend/` with your key:
 GEMINI_API_KEY=AIza...your_key...
 ```
 
+If you want Instagram to work, you also need login cookies — Instagram blocks
+almost all reels for logged-out requests now. Export your cookies with a
+"Get cookies.txt LOCALLY" browser extension while logged into instagram.com,
+save the file as `backend/ig_cookies.txt`, and point `.env` at it:
+
+```
+IG_COOKIES_FILE=./ig_cookies.txt
+```
+
+YouTube needs none of this. Without the cookies, Instagram ingests will just
+come back empty and the card falls back to the post description.
+
 Then start it:
 
 ```bash
@@ -74,21 +86,11 @@ npm run dev
 
 Open http://localhost:5173
 
-### Smoke test (optional)
-
-If you want to verify ingest + embeddings without spending tokens, run this from `backend/`:
-
-```bash
-python test_pipeline.py "https://www.youtube.com/watch?v=jNQXAC9IVRw"
-```
-
-It'll download metadata, fetch the transcript, embed it, and run a query. Doesn't touch the LLM at all.
-
 ## How to use it
 
 1. Paste a YouTube URL into Video A.
 2. Paste another URL (YouTube or Instagram) into Video B.
-3. Click Analyze Videos. First time takes ~30 to 60 seconds because of the BGE model download.
+3. Click Execute. First time takes ~30 to 60 seconds because of the BGE (and, for Instagram, faster-whisper) model download.
 4. Both video cards show up with stats and engagement rates.
 5. Use the chat panel. Try things like:
    - "Which video has better engagement and why?"
@@ -106,7 +108,6 @@ videorag/
     ingest.py         transcript + metadata fetching
     embedder.py       chunking + ChromaDB
     rag.py            LangChain chain, memory, streaming
-    test_pipeline.py  smoke test, no LLM needed
     requirements.txt
   frontend/
     src/
@@ -136,11 +137,34 @@ Running it on your laptop right now:
 - Gemini Flash: free tier
 - Embeddings: local, free
 - ChromaDB: local, free
-- Whisper: local, free (when needed)
+- faster-whisper: local, free (only runs for Instagram)
 
-Total: 0 dollars per day, capped at ~1500 LLM calls.
+Total: 0 dollars per day, capped at ~1500 Gemini calls on the free tier.
 
-At ~1000 creators per day (so ~6000 LLM calls if each chats a bit), you'd move to paid Gemini and Qdrant cloud, and the math works out to roughly $0.0001 per query. Less than a tenth of a cent. Easily a profitable SaaS at any reasonable price.
+## Scaling to 1000 creators a day
+
+Nothing here has to change to handle one user. The interesting question is what
+breaks at ~1000 creators a day (call it ~6000 chat calls if each person asks a
+handful of questions), and what you swap in for each piece:
+
+- **LLM** — the Gemini free tier caps at ~1500 calls/day, so you'd move to paid
+  Gemini Flash. It's cheap: a typical query here is ~2-3k input tokens (4 chunks
+  + history + system) and a few hundred out, which lands around **$0.001-0.002
+  per query**. 6000 calls is roughly $6-12/day. The model name doesn't change,
+  just the billing.
+- **Vector DB** — ChromaDB is local and single-process, which is fine for one
+  laptop but not a fleet. Swap to **Qdrant cloud** (or pgvector). It's basically
+  one line in `embedder.py` where the client is created.
+- **Memory** — sessions live in an in-process dict right now (`rag.py`), so they
+  die on restart and don't share across workers. Move them to **Redis** keyed by
+  `session_id` and it survives restarts and scales horizontally.
+- **Transcription** — faster-whisper on Instagram audio is the slow part (~30-60s
+  per reel). At volume you'd pull it out of the request path into a background
+  worker / queue so ingest returns fast and transcripts fill in async.
+
+So the per-query cost at scale is dominated by the LLM, ~$0.001-0.002. Everything
+else (embeddings, retrieval) stays effectively free because BGE-small runs on
+your own hardware. Comfortably a profitable SaaS at any reasonable price.
 
 ## API
 
@@ -154,9 +178,23 @@ At ~1000 creators per day (so ~6000 LLM calls if each chats a bit), you'd move t
 
 ## Notes on Instagram
 
-Instagram doesn't expose a captions API the way YouTube does, so we have to download the audio and run Whisper on it. That adds 30-60 seconds per video and needs ffmpeg installed. If ffmpeg isn't on PATH the code falls back to the post description, which usually still has enough text to be useful.
+Instagram is the awkward one. Three things to know:
 
-For private accounts you'd need to pass cookies via `INSTAGRAM_COOKIES_FILE`. Most public reels work without that.
+**Login is required.** Instagram now blocks almost every reel for logged-out
+requests, even public ones. So yt-dlp needs your cookies (see the setup section)
+or the ingest comes back empty. YouTube has no such requirement.
+
+**No captions API.** Unlike YouTube there's no transcript endpoint, so we
+download the audio and run faster-whisper on it. That adds ~30-60 seconds per
+reel and needs ffmpeg on PATH. If ffmpeg or the cookies are missing, the code
+falls back to the post description instead of crashing.
+
+**No view counts.** Instagram doesn't expose views through yt-dlp, and the
+engagement formula needs them, so reels show engagement as **N/A** and get
+compared by total interactions (likes + comments) instead. There's an optional
+instaloader fallback to try and recover the view count — flip `IG_FETCH_VIEWS=1`
+in `.env` to enable it — but Instagram currently blocks instaloader's API too,
+so it's off by default and the honest N/A is what you'll usually see.
 
 ## License
 
