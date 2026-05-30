@@ -15,7 +15,7 @@ function Citation({ c }) {
   const isA = c.video_label === "A";
   return (
     <span
-      title={`"${c.title}" by ${c.creator} // engagement ${c.engagement_rate?.toFixed(2)}%`}
+      title={`"${c.title}" by ${c.creator} // engagement ${c.engagement_rate != null ? c.engagement_rate.toFixed(2) + "%" : "N/A"}`}
       className={`text-mono text-[9px] tracking-widest uppercase px-1.5 py-0.5 border cursor-default ${
         isA ? "border-red text-red" : "border-bone/30 text-bone/70"
       }`}

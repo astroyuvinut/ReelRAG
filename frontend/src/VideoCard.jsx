@@ -17,6 +17,7 @@ function fmtDuration(s) {
 }
 
 function engColor(rate) {
+  if (rate == null) return "text-bone/40";
   if (rate >= 5) return "text-bone";
   if (rate >= 2) return "text-bone/80";
   return "text-red";
@@ -50,8 +51,11 @@ export default function VideoCard({ label, data, loading }) {
   const {
     title, creator, thumbnail, views, likes, comments,
     followers, duration, upload_date, hashtags,
-    engagement_rate, platform, source_url,
+    engagement_rate, total_interactions, platform, source_url,
   } = data;
+
+  const hasRate = engagement_rate != null;
+  const interactions = total_interactions ?? ((likes || 0) + (comments || 0));
 
   return (
     <div className="pane pane-red overflow-hidden group">
@@ -125,10 +129,23 @@ export default function VideoCard({ label, data, loading }) {
         {/* engagement, the hero metric */}
         <div className="flex items-end justify-between border-l-2 border-red pl-4 py-2">
           <div>
-            <div className="text-mono text-[9px] tracking-ultra text-bone/40 uppercase">Engagement Rate</div>
-            <div className={`text-display font-bold text-4xl leading-none mt-1 ${engColor(engagement_rate)}`}>
-              {engagement_rate?.toFixed(2)}%
+            <div className="text-mono text-[9px] tracking-ultra text-bone/40 uppercase">
+              {hasRate ? "Engagement Rate" : "Total Interactions"}
             </div>
+            {hasRate ? (
+              <div className={`text-display font-bold text-4xl leading-none mt-1 ${engColor(engagement_rate)}`}>
+                {engagement_rate.toFixed(2)}%
+              </div>
+            ) : (
+              <>
+                <div className="text-display font-bold text-4xl leading-none mt-1 text-bone">
+                  {fmt(interactions)}
+                </div>
+                <div className="text-mono text-[8px] tracking-widest text-bone/30 uppercase mt-1.5">
+                  Rate N/A · {platform} hides views
+                </div>
+              </>
+            )}
           </div>
           <Sparkbar rate={engagement_rate} />
         </div>
@@ -170,9 +187,9 @@ function Stat({ icon, label, value }) {
 }
 
 function Sparkbar({ rate }) {
-  // 10-segment bar, fills based on rate
+  // 10-segment bar, fills based on rate. null rate (N/A) = empty bar.
   const segs = 10;
-  const filled = Math.round(Math.min(rate * 1.5, 10));
+  const filled = rate == null ? 0 : Math.round(Math.min(rate * 1.5, 10));
   return (
     <div className="flex gap-0.5 items-end h-8">
       {[...Array(segs)].map((_, i) => (
