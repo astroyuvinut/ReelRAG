@@ -163,13 +163,13 @@ export default function App() {
           <div className="w-2 h-2 bg-red animate-pulse" />
           <span className="text-display font-bold tracking-widest text-sm">REELRAG</span>
           <span className="text-mono text-[10px] tracking-ultra text-bone/40 hidden md:inline">
-            // SPEED ANALYTICS
+            // VIDEO ANALYTICS
           </span>
         </div>
         <nav className="flex items-center gap-2 md:gap-6 text-mono text-[10px] tracking-widest uppercase text-bone/60">
           <a href="#stats"    className="hover:text-bone transition-colors hidden md:inline">Telemetry</a>
           <a href="#analyze"  className="hover:text-bone transition-colors">Run</a>
-          <a href="https://github.com" target="_blank" rel="noreferrer" className="btn-ghost">
+          <a href="https://github.com/astroyuvinut/ReelRAG" target="_blank" rel="noreferrer" className="btn-ghost">
             <ArrowUpRight size={11} /> Repo
           </a>
         </nav>
@@ -238,7 +238,7 @@ export default function App() {
         items={["TRANSCRIPTS", "ENGAGEMENT", "VECTOR SEARCH", "GEMINI STREAM", "CITATIONS", "RETRIEVAL"]}
       />
 
-      {/* ANALYZE / ENGINE */}
+      {/* ANALYZE / RUN */}
       <section id="analyze" className="relative px-6 md:px-10 py-32 max-w-7xl mx-auto">
         <div className="grid md:grid-cols-12 gap-10 mb-20">
           <div className="md:col-span-3" data-reveal>
@@ -322,7 +322,7 @@ export default function App() {
 
         <div className="h-snap overflow-x-auto scrollbar-none flex" data-reveal>
           <StatBlock index={1} value="0$"      label="EMBEDDING COST"      sub="BGE-small runs on your CPU. No vendor lock-in." />
-          <StatBlock index={2} value="≤4s"     label="P95 STREAM LATENCY"  sub="First Gemini token reaches the UI in under four seconds." />
+          <StatBlock index={2} value="LIVE"    label="TOKEN STREAM"        sub="Answers stream in token by token instead of waiting on the full reply." />
           <StatBlock index={3} value="300/50"  label="CHUNK / OVERLAP"     sub="Words per chunk. Tuned for retrieval signal without bleed." />
           <StatBlock index={4} value="∞"       label="SESSIONS"            sub="Each conversation is sandboxed. State doesn't leak across pairs." />
           <StatBlock index={5} value="2"       label="PLATFORMS"           sub="YouTube + Instagram. More on the roadmap." />
@@ -391,7 +391,7 @@ export default function App() {
 
           <div className="relative mt-16 pt-8 border-t border-bone/10 flex items-center justify-between text-mono text-[9px] tracking-ultra text-bone/30">
             <span>© REELRAG // {new Date().getFullYear()}</span>
-            <span>SCANNING THE FEED AT 24FPS</span>
+            <span>TWO VIDEOS · ONE CHAT</span>
           </div>
         </div>
       </footer>
