@@ -129,6 +129,8 @@ videorag/
 
 **Why a custom SessionMemory class instead of LangChain's ConversationBufferMemory?** Honestly because the LangChain one got deprecated in 1.x and I needed something that wouldn't break next month. It's 12 lines. Not worth the dep churn.
 
+**Why not RetrievalQA / ConversationalRetrievalChain?** Same story. Those chains are on the way out in LangChain 1.x, and more to the point they make token streaming and custom citation payloads a fight — they want to own the output format. So I kept the LangChain pieces that earn their keep (the Gemini wrapper, the message types) and wrote the retrieve → build context → stream loop myself in `rag.py`. It's the same RAG flow — top-4 from Chroma, system prompt, memory, streamed answer — just without the chain abstraction getting in the way of the citation badges.
+
 **Why 300-word chunks?** Short enough to keep retrieval signal high, long enough to capture a full thought. The 50-word overlap means sentences cut at chunk boundaries still appear in full somewhere.
 
 ## Cost
