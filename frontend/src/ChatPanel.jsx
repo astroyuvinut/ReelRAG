@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Loader2, RotateCcw, Radio } from "lucide-react";
 
-const API = "/api";
+const API = import.meta.env.VITE_API_BASE || "/api";
 
 const SUGGESTIONS = [
   "Which video has better engagement and why?",

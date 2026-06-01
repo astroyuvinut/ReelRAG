@@ -10,7 +10,8 @@ import ParticleNetwork from "./ParticleNetwork";
 import useMagnetic from "./useMagnetic";
 import useScrollReveal from "./useScrollReveal";
 
-const API = "/api";
+// dev hits the vite proxy at /api; prod points straight at the deployed backend
+const API = import.meta.env.VITE_API_BASE || "/api";
 
 function detectPlatform(url) {
   if (url.includes("youtube.com") || url.includes("youtu.be")) return "YT";
