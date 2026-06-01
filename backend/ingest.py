@@ -118,10 +118,27 @@ def get_youtube_transcript(video_id):
     return ""
 
 
+_COOKIE_CACHE = {}
+
+
+def _writable_cookie(path):
+    cached = _COOKIE_CACHE.get(path)
+    if cached and os.path.exists(cached):
+        return cached
+    dst = os.path.join(tempfile.gettempdir(), "yt_dlp_" + os.path.basename(path))
+    shutil.copyfile(path, dst)
+    _COOKIE_CACHE[path] = dst
+    return dst
+
+
 def _cookie_opts(file_env, browser_env):
     cookie_file = os.getenv(file_env, "").strip()
     if cookie_file and os.path.exists(cookie_file):
-        return {"cookiefile": cookie_file}
+        try:
+            return {"cookiefile": _writable_cookie(cookie_file)}
+        except OSError as e:
+            log.warning("cookie copy failed for %s: %s", cookie_file, e)
+            return {"cookiefile": cookie_file}
     browser = os.getenv(browser_env, "").strip()
     if browser:
         return {"cookiesfrombrowser": (browser,)}
