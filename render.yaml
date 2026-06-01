@@ -25,7 +25,7 @@ services:
     staticPublishPath: ./frontend/dist
     envVars:
       - key: VITE_API_BASE
-        value: https://reelrag-api.onrender.com
+        value: https://knock-laws-rational-cement.trycloudflare.com
     routes:
       - type: rewrite
         source: /*
