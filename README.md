@@ -20,7 +20,7 @@ I built this because most "AI video analyzers" out there just summarize one vide
 - Backend: FastAPI + Python
 - Frontend: React (Vite) + Tailwind
 - LLM: Gemini 2.5 Flash (free tier)
-- Embeddings: BGE-small via sentence-transformers (runs on your CPU)
+- Embeddings: BGE-small via fastembed / onnxruntime (runs on your CPU, no torch)
 - Vector DB: ChromaDB, local
 - Orchestration: LangChain
 - Transcripts: youtube-transcript-api + yt-dlp + faster-whisper
@@ -132,6 +132,31 @@ videorag/
 **Why not RetrievalQA / ConversationalRetrievalChain?** Same story. Those chains are on the way out in LangChain 1.x, and more to the point they make token streaming and custom citation payloads a fight — they want to own the output format. So I kept the LangChain pieces that earn their keep (the Gemini wrapper, the message types) and wrote the retrieve → build context → stream loop myself in `rag.py`. It's the same RAG flow — top-4 from Chroma, system prompt, memory, streamed answer — just without the chain abstraction getting in the way of the citation badges.
 
 **Why 300-word chunks?** Short enough to keep retrieval signal high, long enough to capture a full thought. The 50-word overlap means sentences cut at chunk boundaries still appear in full somewhere.
+
+## Deploy (Render)
+
+There's a `render.yaml` in the repo root that brings up both halves: the FastAPI
+backend as a Docker web service, and the React build as a static site on Render's
+CDN.
+
+1. Push to GitHub (done already if you're reading this).
+2. On Render: **New → Blueprint**, point it at this repo. It reads `render.yaml`
+   and creates two services — `reelrag-api` and `reelrag-web`.
+3. Add your `GEMINI_API_KEY` to the `reelrag-api` service. It's marked
+   `sync: false`, so it lives in the dashboard, never in git.
+4. First deploy takes a few minutes — the image installs ffmpeg and the backend
+   pulls the BGE model on the first request.
+
+The frontend finds the backend through the `VITE_API_BASE` build variable,
+already wired in `render.yaml` to the api service's URL. Rename the api service
+and you just change that one line.
+
+Two honest notes:
+- Swapping sentence-transformers for **fastembed** (onnxruntime, no torch) is the
+  thing that lets this fit Render's smaller instances instead of OOM-ing.
+- **Instagram won't work in the cloud.** It needs your login cookies, which don't
+  belong on a server, and Instagram blocks datacenter IPs regardless. YouTube
+  comparisons deploy fine — keep Instagram for local runs.
 
 ## Cost
 

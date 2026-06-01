@@ -1,0 +1,12 @@
+# never bake secrets, local state or junk into the image
+.env
+*cookies*.txt
+ig_cookies.txt
+venv/
+.venv/
+__pycache__/
+*.pyc
+chroma_store/
+*.log
+_ig_test.py
+_il_test.py
