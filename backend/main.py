@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 from dotenv import load_dotenv
 
-from ingest import ingest_pair
+from ingest import ingest_pair, FetchError
 from embedder import embed_and_store, clear_collection
 from rag import stream_answer, clear_session
 
@@ -58,6 +58,9 @@ async def ingest(req: IngestRequest):
 
     try:
         pair = ingest_pair(req.url_a, req.url_b)
+    except FetchError as e:
+        log.error("fetch blocked: %s", e)
+        raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
         log.error("ingest failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Ingest error: {e}")

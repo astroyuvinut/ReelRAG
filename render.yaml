@@ -10,7 +10,9 @@ services:
       - key: GEMINI_API_KEY
         sync: false
       - key: WHISPER_MODEL
-        value: base
+        value: tiny
+      - key: PROXY_URL
+        sync: false
 
   - type: web
     name: reelrag-web

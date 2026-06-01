@@ -12,6 +12,24 @@ from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisable
 
 log = logging.getLogger(__name__)
 
+
+class FetchError(Exception):
+    pass
+
+
+def _proxy_url():
+    return os.getenv("PROXY_URL", "").strip()
+
+
+def _blocked_msg(url, detail):
+    where = "youtube" if is_youtube(url) else "instagram" if is_instagram(url) else "this source"
+    if _proxy_url():
+        hint = " the proxy may be down or out of quota."
+    else:
+        hint = " set a residential PROXY_URL on the host so it isn't seen as a datacenter bot."
+    return f"couldn't pull {where} data, likely an IP block.{hint} [{detail}]"
+
+
 try:
     _NEW_API = callable(getattr(YouTubeTranscriptApi(), "fetch", None))
 except TypeError:
@@ -49,10 +67,25 @@ def _join_snippets(raw):
     return ""
 
 
+def _transcript_api():
+    proxy = _proxy_url()
+    if proxy:
+        from youtube_transcript_api.proxies import GenericProxyConfig
+        return YouTubeTranscriptApi(
+            proxy_config=GenericProxyConfig(http_url=proxy, https_url=proxy)
+        )
+    return YouTubeTranscriptApi()
+
+
+def _legacy_proxies():
+    proxy = _proxy_url()
+    return {"http": proxy, "https": proxy} if proxy else None
+
+
 def get_youtube_transcript(video_id):
     if _NEW_API:
         try:
-            api = YouTubeTranscriptApi()
+            api = _transcript_api()
             return _join_snippets(api.fetch(video_id, languages=["en"]))
         except (NoTranscriptFound, TranscriptsDisabled):
             pass
@@ -60,7 +93,7 @@ def get_youtube_transcript(video_id):
             log.warning("fetch failed for %s: %s", video_id, e)
 
         try:
-            api = YouTubeTranscriptApi()
+            api = _transcript_api()
             for t in api.list(video_id):
                 return _join_snippets(t.fetch())
         except Exception as e:
@@ -68,7 +101,9 @@ def get_youtube_transcript(video_id):
         return ""
 
     try:
-        raw = YouTubeTranscriptApi.get_transcript(video_id, languages=["en"])
+        raw = YouTubeTranscriptApi.get_transcript(
+            video_id, languages=["en"], proxies=_legacy_proxies()
+        )
         return _join_snippets(raw)
     except (NoTranscriptFound, TranscriptsDisabled):
         pass
@@ -98,6 +133,9 @@ def _ydl_opts(url, extra=None):
         "quiet": True,
         "no_warnings": True,
     }
+    proxy = _proxy_url()
+    if proxy:
+        opts["proxy"] = proxy
     if is_instagram(url):
         opts.update(_ig_cookie_opts())
     if extra:
@@ -110,10 +148,12 @@ def get_metadata(url):
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
-        return info or {}
     except Exception as e:
         log.warning("metadata extract failed for %s: %s", url, e)
-        return {}
+        raise FetchError(_blocked_msg(url, e))
+    if not info:
+        raise FetchError(_blocked_msg(url, "empty response"))
+    return info
 
 
 def _instagram_shortcode(url):
