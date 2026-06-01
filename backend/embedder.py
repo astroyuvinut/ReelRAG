@@ -2,7 +2,7 @@ import re
 import logging
 
 import chromadb
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +20,8 @@ def get_model():
     global _model
     if _model is None:
         log.info("loading BGE-small...")
-        _model = SentenceTransformer("BAAI/bge-small-en-v1.5")
+        # onnx runtime, no torch. way smaller image and lower memory.
+        _model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
     return _model
 
 
@@ -77,19 +78,23 @@ def embed_and_store(label, transcript, meta):
     model = get_model()
     col = get_collection()
 
+    # chromadb can't store None, so -1.0 is our "not computable" sentinel
+    eng = meta.get("engagement_rate")
+    eng_val = float(eng) if eng is not None else -1.0
+
+    # fastembed hands back a generator of numpy vectors, one per chunk
+    vectors = list(model.embed(chunks))
+
     docs, embs, metas, ids = [], [], [], []
-    for i, chunk in enumerate(chunks):
-        vec = model.encode(chunk, normalize_embeddings=True).tolist()
+    for i, (chunk, vec) in enumerate(zip(chunks, vectors)):
         docs.append(chunk)
-        embs.append(vec)
-        # chromadb can't store None, so -1.0 is our "not computable" sentinel
-        eng = meta.get("engagement_rate")
+        embs.append(vec.tolist())
         metas.append({
             "video_label": label,
             "chunk_index": i,
             "source_url": meta.get("source_url", ""),
             "creator": meta.get("creator", ""),
-            "engagement_rate": float(eng) if eng is not None else -1.0,
+            "engagement_rate": eng_val,
             "total_interactions": int(meta.get("total_interactions", 0)),
             "title": meta.get("title", ""),
             "platform": meta.get("platform", ""),
@@ -105,11 +110,8 @@ def query_similar(question, n_results=4):
     model = get_model()
     col = get_collection()
 
-    # BGE-small wants this prefix on queries (not on passages)
-    q_vec = model.encode(
-        f"Represent this sentence: {question}",
-        normalize_embeddings=True,
-    ).tolist()
+    # query_embed adds the instruction prefix BGE wants on queries (not passages)
+    q_vec = list(model.query_embed(question))[0].tolist()
 
     res = col.query(
         query_embeddings=[q_vec],
