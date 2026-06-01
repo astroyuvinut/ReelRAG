@@ -15,6 +15,8 @@ services:
         sync: false
       - key: YT_COOKIES_FILE
         value: /etc/secrets/youtube_cookies.txt
+      - key: IG_COOKIES_FILE
+        value: /etc/secrets/instagram_cookies.txt
 
   - type: web
     name: reelrag-web
