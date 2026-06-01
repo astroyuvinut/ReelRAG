@@ -171,10 +171,10 @@ def _ydl_opts(url, extra=None):
 
 
 def get_metadata(url):
-    opts = _ydl_opts(url, {"skip_download": True, "extract_flat": False})
+    opts = _ydl_opts(url, {"skip_download": True})
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            info = ydl.extract_info(url, download=False, process=False)
     except Exception as e:
         log.warning("metadata extract failed for %s: %s", url, e)
         raise FetchError(_blocked_msg(url, e))
@@ -242,7 +242,7 @@ def whisper_transcribe(url):
     try:
         with tempfile.TemporaryDirectory() as tmp:
             opts = _ydl_opts(url, {
-                "format": "bestaudio/best",
+                "format": "worstaudio/bestaudio/best",
                 "outtmpl": os.path.join(tmp, "audio.%(ext)s"),
                 "postprocessors": [{
                     "key": "FFmpegExtractAudio",
