@@ -118,14 +118,22 @@ def get_youtube_transcript(video_id):
     return ""
 
 
-def _ig_cookie_opts():
-    cookie_file = os.getenv("IG_COOKIES_FILE", "").strip()
+def _cookie_opts(file_env, browser_env):
+    cookie_file = os.getenv(file_env, "").strip()
     if cookie_file and os.path.exists(cookie_file):
         return {"cookiefile": cookie_file}
-    browser = os.getenv("IG_COOKIES_BROWSER", "").strip()
+    browser = os.getenv(browser_env, "").strip()
     if browser:
         return {"cookiesfrombrowser": (browser,)}
     return {}
+
+
+def _ig_cookie_opts():
+    return _cookie_opts("IG_COOKIES_FILE", "IG_COOKIES_BROWSER")
+
+
+def _yt_cookie_opts():
+    return _cookie_opts("YT_COOKIES_FILE", "YT_COOKIES_BROWSER")
 
 
 def _ydl_opts(url, extra=None):
@@ -138,6 +146,8 @@ def _ydl_opts(url, extra=None):
         opts["proxy"] = proxy
     if is_instagram(url):
         opts.update(_ig_cookie_opts())
+    elif is_youtube(url):
+        opts.update(_yt_cookie_opts())
     if extra:
         opts.update(extra)
     return opts
