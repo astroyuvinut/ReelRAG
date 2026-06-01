@@ -8,7 +8,9 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    plan: starter
+    # free tier: 512MB, spins down after ~15min idle (first hit is a cold start).
+    # fits because whisper only loads for instagram, which doesn't run in the cloud.
+    plan: free
     healthCheckPath: /health
     envVars:
       - key: GEMINI_API_KEY
