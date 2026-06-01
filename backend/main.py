@@ -25,7 +25,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# the currently-loaded pair, kept in memory for /metadata
 stored = {}
 
 
@@ -65,7 +64,6 @@ async def ingest(req: IngestRequest):
 
     va, vb = pair["video_a"], pair["video_b"]
 
-    # always start clean so we don't mix old chunks into a new pair
     clear_collection()
 
     try:

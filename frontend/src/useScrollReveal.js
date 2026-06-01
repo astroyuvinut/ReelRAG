@@ -4,7 +4,6 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 gsap.registerPlugin(ScrollTrigger);
 
-// every element with [data-reveal] animates in when it enters the viewport
 export default function useScrollReveal() {
   useEffect(() => {
     const elements = gsap.utils.toArray("[data-reveal]");
@@ -28,7 +27,6 @@ export default function useScrollReveal() {
         );
       });
 
-      // stagger children
       gsap.utils.toArray("[data-stagger]").forEach((parent) => {
         gsap.fromTo(
           parent.children,

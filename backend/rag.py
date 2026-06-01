@@ -12,7 +12,7 @@ from embedder import query_similar
 load_dotenv()
 log = logging.getLogger(__name__)
 
-MAX_TURNS = 8  # keep last 8 exchanges, otherwise context blows up
+MAX_TURNS = 8
 
 
 @dataclass
@@ -26,7 +26,6 @@ class SessionMemory:
         self.messages.append(AIMessage(content=text))
 
     def recent(self, max_turns=MAX_TURNS):
-        # one turn = 1 user msg + 1 ai msg
         return self.messages[-(max_turns * 2):]
 
 
@@ -46,7 +45,6 @@ Rules:
 - Keep it readable: short paragraphs or bullets.
 """
 
-# {session_id: SessionMemory}
 sessions = {}
 
 
@@ -57,7 +55,6 @@ def get_memory(session_id):
 
 
 def _eng_label(meta):
-    # -1.0 sentinel means views weren't available (e.g. instagram)
     eng = meta.get("engagement_rate", -1)
     ti = meta.get("total_interactions", 0)
     if eng is not None and eng >= 0:
@@ -86,7 +83,6 @@ def format_citations(hits):
             "chunk_index": h["chunk_index"],
             "title": h["metadata"].get("title", ""),
             "creator": h["metadata"].get("creator", ""),
-            # convert sentinel back to null so the frontend shows N/A, not -1
             "engagement_rate": eng if (eng is not None and eng >= 0) else None,
             "total_interactions": h["metadata"].get("total_interactions", 0),
             "distance": round(h["distance"], 4),
@@ -138,7 +134,6 @@ async def stream_answer(question, session_id):
     mem.add_user(question)
     mem.add_ai(full)
 
-    # citations come last so the frontend can split them off
     yield f"\n__CITATIONS__:{json.dumps(citations)}"
 
 

@@ -1,15 +1,9 @@
-# render blueprint: one backend web service + the static frontend.
-# point render at this repo and it spins up both. set GEMINI_API_KEY in the
-# dashboard (it's marked sync:false so it never lives in git).
 services:
-  # FastAPI + the ML bits (fastembed, faster-whisper, chroma)
   - type: web
     name: reelrag-api
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    # free tier: 512MB, spins down after ~15min idle (first hit is a cold start).
-    # fits because whisper only loads for instagram, which doesn't run in the cloud.
     plan: free
     healthCheckPath: /health
     envVars:
@@ -18,15 +12,12 @@ services:
       - key: WHISPER_MODEL
         value: base
 
-  # React build, served as static files off render's CDN
   - type: web
     name: reelrag-web
     runtime: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/dist
     envVars:
-      # build-time: tells the frontend where the backend lives.
-      # if you rename the api service above, update this host to match.
       - key: VITE_API_BASE
         value: https://reelrag-api.onrender.com
     routes:

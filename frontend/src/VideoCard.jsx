@@ -59,7 +59,6 @@ export default function VideoCard({ label, data, loading }) {
 
   return (
     <div className="pane pane-red overflow-hidden group">
-      {/* thumbnail strip */}
       <div className="relative h-52 bg-coal overflow-hidden">
         {thumbnail ? (
           <img
@@ -74,12 +73,10 @@ export default function VideoCard({ label, data, loading }) {
           </div>
         )}
 
-        {/* gradient veil */}
         <div className="absolute inset-0" style={{
           background: "linear-gradient(180deg, transparent 0%, transparent 50%, rgba(8,8,8,0.9) 100%)"
         }} />
 
-        {/* corner stamps */}
         <div className="absolute top-4 left-4 flex items-center gap-2">
           <span className="bg-red text-ink text-display font-bold text-sm px-2 py-0.5 tracking-widest">
             {label}
@@ -96,13 +93,11 @@ export default function VideoCard({ label, data, loading }) {
           </div>
         )}
 
-        {/* scan line on hover */}
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
           <div className="scan-line animate-scan" />
         </div>
       </div>
 
-      {/* body */}
       <div className="p-6 space-y-5">
         <div>
           <h3 className="text-display font-bold text-base text-bone leading-tight line-clamp-2 tracking-tight uppercase">
@@ -118,7 +113,6 @@ export default function VideoCard({ label, data, loading }) {
           </div>
         </div>
 
-        {/* stats grid */}
         <div className="grid grid-cols-2 gap-px bg-bone/5 border border-bone/5">
           <Stat icon={<Eye size={11} />}            label="VIEWS"     value={fmt(views)} />
           <Stat icon={<Heart size={11} />}          label="LIKES"     value={fmt(likes)} />
@@ -126,7 +120,6 @@ export default function VideoCard({ label, data, loading }) {
           <Stat icon={<Users size={11} />}          label="REACH"     value={fmt(followers)} />
         </div>
 
-        {/* engagement, the hero metric */}
         <div className="flex items-end justify-between border-l-2 border-red pl-4 py-2">
           <div>
             <div className="text-mono text-[9px] tracking-ultra text-bone/40 uppercase">
@@ -187,7 +180,6 @@ function Stat({ icon, label, value }) {
 }
 
 function Sparkbar({ rate }) {
-  // 10-segment bar, fills based on rate. null rate (N/A) = empty bar.
   const segs = 10;
   const filled = rate == null ? 0 : Math.round(Math.min(rate * 1.5, 10));
   return (

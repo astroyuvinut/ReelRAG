@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 
-// element drifts toward the cursor when it's within `radius` pixels
 export default function useMagnetic(strength = 0.3, radius = 100) {
   const ref = useRef(null);
 

@@ -1,8 +1,5 @@
 import { useEffect, useRef } from "react";
 
-// canvas particle field. lives at z-0 behind everything.
-// mouse pushes particles away in a soft radius, lines fade with distance.
-// pointer-events: none so it never blocks anything in the UI.
 export default function ParticleNetwork({
   count = 75,
   connectDist = 140,
@@ -37,7 +34,6 @@ export default function ParticleNetwork({
     };
 
     const spawn = () => {
-      // density scales with viewport so smaller screens don't look bare
       const target = Math.round(count * Math.min(1.4, Math.max(0.5, (w * h) / (1440 * 900))));
       particles = Array.from({ length: target }, () => ({
         x: Math.random() * w,
@@ -45,7 +41,7 @@ export default function ParticleNetwork({
         vx: (Math.random() - 0.5) * baseDrift,
         vy: (Math.random() - 0.5) * baseDrift,
         r: Math.random() * 1.1 + 0.4,
-        accent: Math.random() < 0.06, // 6% are red, the rest off-white
+        accent: Math.random() < 0.06,
       }));
     };
 
@@ -62,7 +58,6 @@ export default function ParticleNetwork({
 
       ctx.clearRect(0, 0, w, h);
 
-      // step particles
       for (const p of particles) {
         if (mouse.active) {
           const dx = p.x - mouse.x;
@@ -77,15 +72,12 @@ export default function ParticleNetwork({
           }
         }
 
-        // gentle damping so the push fades out over time
         p.vx *= 0.985;
         p.vy *= 0.985;
 
-        // add a tiny bit of brownian wander so things never look frozen
         p.vx += (Math.random() - 0.5) * 0.008;
         p.vy += (Math.random() - 0.5) * 0.008;
 
-        // velocity ceiling
         const speed = Math.hypot(p.vx, p.vy);
         const max = 0.9;
         if (speed > max) { p.vx = (p.vx / speed) * max; p.vy = (p.vy / speed) * max; }
@@ -93,14 +85,12 @@ export default function ParticleNetwork({
         p.x += p.vx;
         p.y += p.vy;
 
-        // wrap edges so we don't accumulate at the corners
         if (p.x < -5)    p.x = w + 4;
         if (p.x > w + 5) p.x = -4;
         if (p.y < -5)    p.y = h + 4;
         if (p.y > h + 5) p.y = -4;
       }
 
-      // lines first (under the dots)
       ctx.lineWidth = 0.45;
       for (let i = 0; i < particles.length; i++) {
         const a = particles[i];
@@ -113,7 +103,6 @@ export default function ParticleNetwork({
           if (d2 < r2) {
             const d = Math.sqrt(d2);
             const t = 1 - d / connectDist;
-            // base alpha is bone, but if either end is accent, blend toward red
             const alpha = t * 0.18;
             if (a.accent || b.accent) {
               ctx.strokeStyle = `rgba(255, 34, 0, ${alpha * 1.2})`;
@@ -128,7 +117,6 @@ export default function ParticleNetwork({
         }
       }
 
-      // dots on top of lines
       for (const p of particles) {
         ctx.fillStyle = p.accent
           ? "rgba(255, 34, 0, 0.85)"
@@ -163,7 +151,6 @@ export default function ParticleNetwork({
       ref={canvasRef}
       aria-hidden
       className="fixed inset-0 pointer-events-none"
-      // z-index -1 puts it behind in-flow content but above the body's background
       style={{ zIndex: -1 }}
     />
   );

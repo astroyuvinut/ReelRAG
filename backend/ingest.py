@@ -12,8 +12,6 @@ from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisable
 
 log = logging.getLogger(__name__)
 
-# the youtube-transcript-api lib changed its api at v1.0
-# v0.x had static methods, v1.x needs an instance. handle both.
 try:
     _NEW_API = callable(getattr(YouTubeTranscriptApi(), "fetch", None))
 except TypeError:
@@ -30,7 +28,6 @@ def is_instagram(url):
 
 
 def get_youtube_id(url):
-    # covers normal watch URLs, shorts, embed and youtu.be
     patterns = [
         r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})",
         r"(?:embed/)([A-Za-z0-9_-]{11})",
@@ -44,11 +41,9 @@ def get_youtube_id(url):
 
 
 def _join_snippets(raw):
-    # v1.x returns FetchedTranscript with .snippets
     snippets = getattr(raw, "snippets", None)
     if snippets is not None:
         return " ".join(getattr(s, "text", "") for s in snippets)
-    # v0.x returned plain list of dicts
     if isinstance(raw, list):
         return " ".join(item.get("text", "") for item in raw)
     return ""
@@ -64,7 +59,6 @@ def get_youtube_transcript(video_id):
         except Exception as e:
             log.warning("fetch failed for %s: %s", video_id, e)
 
-        # try any language as last resort
         try:
             api = YouTubeTranscriptApi()
             for t in api.list(video_id):
@@ -73,7 +67,6 @@ def get_youtube_transcript(video_id):
             log.warning("list_transcripts failed: %s", e)
         return ""
 
-    # legacy path
     try:
         raw = YouTubeTranscriptApi.get_transcript(video_id, languages=["en"])
         return _join_snippets(raw)
@@ -90,7 +83,6 @@ def get_youtube_transcript(video_id):
     return ""
 
 
-# instagram needs login cookies for most reels. read at call-time so a late .env still applies.
 def _ig_cookie_opts():
     cookie_file = os.getenv("IG_COOKIES_FILE", "").strip()
     if cookie_file and os.path.exists(cookie_file):
@@ -106,7 +98,6 @@ def _ydl_opts(url, extra=None):
         "quiet": True,
         "no_warnings": True,
     }
-    # only instagram needs cookies; youtube works anonymously
     if is_instagram(url):
         opts.update(_ig_cookie_opts())
     if extra:
@@ -121,20 +112,16 @@ def get_metadata(url):
             info = ydl.extract_info(url, download=False)
         return info or {}
     except Exception as e:
-        # instagram login/rate-limit, dead post, whatever. don't 500 the whole call.
         log.warning("metadata extract failed for %s: %s", url, e)
         return {}
 
 
 def _instagram_shortcode(url):
-    # pull the shortcode out of /reel/XXXX/, /p/XXXX/, /tv/XXXX/
     m = re.search(r"/(?:reel|reels|p|tv)/([A-Za-z0-9_-]+)", url)
     return m.group(1) if m else None
 
 
 def _instagram_views(url):
-    # last-ditch try at instagram view counts. off by default since instagram
-    # currently 400s instaloader anyway. set IG_FETCH_VIEWS=1 to attempt it.
     if os.getenv("IG_FETCH_VIEWS", "").strip() not in ("1", "true", "yes"):
         return None
     shortcode = _instagram_shortcode(url)
@@ -145,16 +132,13 @@ def _instagram_views(url):
     except ImportError:
         return None
     try:
-        # fail fast instead of retrying a blocked endpoint several times
         loader = instaloader.Instaloader(quiet=True, max_connection_attempts=1)
-        # reuse the same cookies.txt we feed yt-dlp, if it's around
         cookie_file = os.getenv("IG_COOKIES_FILE", "").strip()
         if cookie_file and os.path.exists(cookie_file):
             jar = MozillaCookieJar(cookie_file)
             jar.load(ignore_discard=True, ignore_expires=True)
             for c in jar:
                 loader.context._session.cookies.set_cookie(c)
-            # graphql only works on a logged-in session, so check the cookies first
             who = loader.test_login()
             if who:
                 loader.context.username = who
@@ -165,7 +149,6 @@ def _instagram_views(url):
         return None
 
 
-# cache the model so we don't reload weights on every video
 _FW_MODEL = None
 
 
@@ -174,13 +157,11 @@ def _get_fw_model():
     if _FW_MODEL is None:
         from faster_whisper import WhisperModel
         size = os.getenv("WHISPER_MODEL", "base")
-        # int8 on cpu keeps it fast and light; no gpu/torch needed
         _FW_MODEL = WhisperModel(size, device="cpu", compute_type="int8")
     return _FW_MODEL
 
 
 def whisper_transcribe(url):
-    # audio extraction needs ffmpeg. bail out cleanly if not installed.
     if shutil.which("ffmpeg") is None:
         log.warning("ffmpeg not on PATH. skipping transcription. install ffmpeg first.")
         return ""
@@ -222,7 +203,6 @@ def normalize_metadata(info, url):
     comments = info.get("comment_count") or 0
     followers = info.get("channel_follower_count") or info.get("uploader_follower_count") or 0
 
-    # yt-dlp leaves instagram views blank; try to fill it in, else it stays N/A.
     if views == 0 and is_instagram(url):
         views = _instagram_views(url) or 0
     duration = info.get("duration") or 0
@@ -237,11 +217,8 @@ def normalize_metadata(info, url):
     if isinstance(tags, list):
         tags = [str(t) for t in tags[:20]]
 
-    # total interactions is always comparable across platforms
     total_interactions = likes + comments
 
-    # engagement = (likes + comments) / views. instagram hides views, so when
-    # they're missing we use None (shows as N/A) instead of a fake 0.00%.
     eng = round(total_interactions / views * 100, 4) if views > 0 else None
 
     thumb = info.get("thumbnail") or ""
@@ -260,7 +237,7 @@ def normalize_metadata(info, url):
         "duration": duration,
         "upload_date": upload_date,
         "hashtags": tags,
-        "engagement_rate": eng,  # None when views unavailable (e.g. instagram)
+        "engagement_rate": eng,
         "total_interactions": total_interactions,
         "platform": "youtube" if is_youtube(url) else "instagram",
     }
@@ -281,11 +258,9 @@ def ingest_video(url, label):
             log.info("no captions found, trying whisper")
             transcript = whisper_transcribe(url)
     else:
-        # instagram has no public captions api, go straight to whisper
         transcript = whisper_transcribe(url)
 
     if not transcript:
-        # last-resort fallback so chat still has something to work with
         transcript = meta.get("description") or info.get("description") or ""
         log.warning("no transcript for %s, falling back to description", url)
 

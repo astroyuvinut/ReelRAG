@@ -10,7 +10,6 @@ CHUNK_SIZE = 300
 OVERLAP = 50
 COLLECTION = "videorag"
 
-# load these once and keep them around
 _model = None
 _client = None
 _collection = None
@@ -20,7 +19,6 @@ def get_model():
     global _model
     if _model is None:
         log.info("loading BGE-small...")
-        # onnx runtime, no torch. way smaller image and lower memory.
         _model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
     return _model
 
@@ -55,7 +53,6 @@ def make_chunks(text):
 
 
 def clear_collection():
-    # wipe the store before every fresh ingest, otherwise old chunks bleed in
     global _collection
     get_collection()
     try:
@@ -78,11 +75,9 @@ def embed_and_store(label, transcript, meta):
     model = get_model()
     col = get_collection()
 
-    # chromadb can't store None, so -1.0 is our "not computable" sentinel
     eng = meta.get("engagement_rate")
     eng_val = float(eng) if eng is not None else -1.0
 
-    # fastembed hands back a generator of numpy vectors, one per chunk
     vectors = list(model.embed(chunks))
 
     docs, embs, metas, ids = [], [], [], []
@@ -110,7 +105,6 @@ def query_similar(question, n_results=4):
     model = get_model()
     col = get_collection()
 
-    # query_embed adds the instruction prefix BGE wants on queries (not passages)
     q_vec = list(model.query_embed(question))[0].tolist()
 
     res = col.query(

@@ -10,7 +10,6 @@ import ParticleNetwork from "./ParticleNetwork";
 import useMagnetic from "./useMagnetic";
 import useScrollReveal from "./useScrollReveal";
 
-// dev hits the vite proxy at /api; prod points straight at the deployed backend
 const API = import.meta.env.VITE_API_BASE || "/api";
 
 function detectPlatform(url) {
@@ -20,7 +19,6 @@ function detectPlatform(url) {
 }
 
 function GiantShape() {
-  // oversized abstract geometric form in hero (clipped polygon + drift)
   return (
     <div className="pointer-events-none absolute -top-32 -right-40 w-[900px] h-[900px] z-0 hidden md:block">
       <div className="absolute inset-0 animate-drift">
@@ -56,7 +54,6 @@ function GiantShape() {
           <line x1="40"  y1="400" x2="760" y2="400" stroke="rgba(245,245,240,0.04)" strokeWidth="0.6" />
         </svg>
       </div>
-      {/* the morphing blob */}
       <div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] animate-blob-morph opacity-20"
         style={{ background: "radial-gradient(circle, #ff2200 0%, transparent 70%)", filter: "blur(50px)" }}
@@ -150,15 +147,12 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen text-bone overflow-hidden">
-      {/* particle field sits at z=-1, body's bg-ink paints behind it */}
       <ParticleNetwork />
 
-      {/* foreground overlays */}
       <Cursor />
       <div className="grain animate-grain-shift" />
       <div className="spotlight" />
 
-      {/* NAV */}
       <header className="fixed top-0 left-0 right-0 z-50 px-6 md:px-10 py-5 flex items-center justify-between bg-ink/40 backdrop-blur-md border-b border-bone/5">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 bg-red animate-pulse" />
@@ -176,7 +170,6 @@ export default function App() {
         </nav>
       </header>
 
-      {/* HERO */}
       <section className="relative pt-44 pb-32 px-6 md:px-10 min-h-screen flex flex-col justify-center">
         <div className="lens-flare" />
         <GiantShape />
@@ -212,7 +205,6 @@ export default function App() {
             </a>
           </div>
 
-          {/* spec strip */}
           <div className="mt-24 grid grid-cols-2 md:grid-cols-4 gap-px bg-bone/10" data-stagger>
             {[
               { k: "MODEL",     v: "GEMINI 2.5" },
@@ -228,18 +220,15 @@ export default function App() {
           </div>
         </div>
 
-        {/* corner timestamp */}
         <div className="absolute bottom-8 right-6 md:right-10 text-mono text-[9px] tracking-ultra text-bone/30">
           TIMESTAMP // {new Date().toISOString().slice(0, 16)}Z
         </div>
       </section>
 
-      {/* MARQUEE */}
       <Marquee
         items={["TRANSCRIPTS", "ENGAGEMENT", "VECTOR SEARCH", "GEMINI STREAM", "CITATIONS", "RETRIEVAL"]}
       />
 
-      {/* ANALYZE / RUN */}
       <section id="analyze" className="relative px-6 md:px-10 py-32 max-w-7xl mx-auto">
         <div className="grid md:grid-cols-12 gap-10 mb-20">
           <div className="md:col-span-3" data-reveal>
@@ -253,7 +242,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* input pane */}
         <div className="pane pane-red p-8 md:p-10 relative" data-reveal>
           <div className="grid md:grid-cols-2 gap-8 mb-8">
             {[
@@ -294,7 +282,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* video cards */}
         {(videoData.a || videoData.b || loading) && (
           <div className="mt-16 grid md:grid-cols-2 gap-6" data-stagger>
             <VideoCard label="A" data={videoData.a} loading={loading} />
@@ -303,7 +290,6 @@ export default function App() {
         )}
       </section>
 
-      {/* stats, horizontal scroll */}
       <section id="stats" className="relative py-32 border-y border-bone/10">
         <div className="px-6 md:px-10 max-w-7xl mx-auto mb-16">
           <div className="grid md:grid-cols-12 gap-10">
@@ -331,7 +317,6 @@ export default function App() {
         </div>
       </section>
 
-      {/* CHAT PANEL */}
       <section className="relative px-6 md:px-10 py-32 max-w-7xl mx-auto">
         <div className="grid md:grid-cols-12 gap-10 mb-16">
           <div className="md:col-span-3" data-reveal>
@@ -353,7 +338,6 @@ export default function App() {
         </div>
       </section>
 
-      {/* FOOTER */}
       <footer className="relative border-t border-bone/10 py-16 px-6 md:px-10">
         <div className="max-w-7xl mx-auto">
           <div

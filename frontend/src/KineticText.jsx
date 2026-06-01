@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 
-// per-character reveal with motion blur. each char animates in on its own delay.
 export default function KineticText({ text, className = "", delay = 0, stagger = 35 }) {
   const ref = useRef(null);
 
@@ -17,7 +16,7 @@ export default function KineticText({ text, className = "", delay = 0, stagger =
     <span ref={ref} className={className} aria-label={text}>
       {[...text].map((ch, i) => (
         <span key={i} className="char" aria-hidden>
-          {ch === " " ? " " : ch}
+          {ch === " " ? " " : ch}
         </span>
       ))}
     </span>

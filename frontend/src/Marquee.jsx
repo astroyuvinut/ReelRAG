@@ -1,5 +1,4 @@
 export default function Marquee({ items, reverse = false, className = "" }) {
-  // duplicate the list so the infinite loop seam is invisible
   const doubled = [...items, ...items];
   return (
     <div className={`relative overflow-hidden border-y border-bone/10 py-6 ${className}`}>

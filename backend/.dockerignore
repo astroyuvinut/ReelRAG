@@ -1,4 +1,3 @@
-# never bake secrets, local state or junk into the image
 .env
 *cookies*.txt
 ig_cookies.txt

@@ -48,11 +48,9 @@ export default function Cursor() {
     };
 
     const tick = () => {
-      // dot follows the mouse near-exactly
       dx += (mx - dx) * 0.35;
       dy += (my - dy) * 0.35;
       dot.style.transform = `translate3d(${dx - 4}px, ${dy - 4}px, 0)`;
-      // ring lags behind for that filmic feel
       rx += (mx - rx) * 0.12;
       ry += (my - ry) * 0.12;
       const scale = hovering ? 1.6 : 1;

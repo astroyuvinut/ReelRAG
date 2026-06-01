@@ -148,7 +148,6 @@ export default function ChatPanel({ ready, sessionId, onSessionChange }) {
 
   return (
     <div className="pane pane-red h-full flex flex-col">
-      {/* header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-bone/10 shrink-0">
         <div className="flex items-center gap-3">
           <Radio size={14} className="text-red animate-pulse" />
@@ -170,7 +169,6 @@ export default function ChatPanel({ ready, sessionId, onSessionChange }) {
         )}
       </div>
 
-      {/* messages */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center gap-8 py-12">
@@ -207,7 +205,6 @@ export default function ChatPanel({ ready, sessionId, onSessionChange }) {
         <div ref={bottomRef} />
       </div>
 
-      {/* input */}
       <div className="px-5 py-4 border-t border-bone/10 shrink-0">
         <div className="flex gap-2 items-end">
           <textarea
