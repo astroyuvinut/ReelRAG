@@ -13,6 +13,10 @@ env/
 *.env.*.local
 !.env.example
 
+# render api creds for the auto-deploy script (never commit)
+.render
+!.render.example
+
 # instagram login cookies (never commit these)
 *cookies*.txt
 ig_cookies.txt

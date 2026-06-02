@@ -1,0 +1,9 @@
+# copy this to ".render" (no extension) and fill in your values.
+# .render is gitignored, so your key never leaves this machine.
+#
+# RENDER_API_KEY  -> Render dashboard -> Account Settings -> API Keys -> Create
+# RENDER_WEB_SERVICE_ID -> open the reelrag-web service, the id is in the url:
+#                          dashboard.render.com/static/srv-XXXXXXXX  -> "srv-XXXXXXXX"
+
+RENDER_API_KEY=rnd_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+RENDER_WEB_SERVICE_ID=srv-xxxxxxxxxxxxxxxxxxxx
