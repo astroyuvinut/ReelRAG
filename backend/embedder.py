@@ -52,21 +52,18 @@ def make_chunks(text):
     return chunks
 
 
-def clear_collection():
-    global _collection
-    get_collection()
+def clear_session_data(session_id):
+    # drop just this workspace's chunks, not everyone's. two people (or two of
+    # your own devices) can have their own pair of videos at the same time.
+    col = get_collection()
     try:
-        _client.delete_collection(COLLECTION)
-        log.info("cleared old collection")
-    except Exception:
-        pass
-    _collection = _client.get_or_create_collection(
-        name=COLLECTION,
-        metadata={"hnsw:space": "cosine"},
-    )
+        col.delete(where={"session_id": session_id})
+        log.info("cleared chunks for session %s", session_id)
+    except Exception as e:
+        log.warning("clear for session %s failed: %s", session_id, e)
 
 
-def embed_and_store(label, transcript, meta):
+def embed_and_store(label, transcript, meta, session_id):
     if not transcript or not transcript.strip():
         log.warning("empty transcript for video %s, nothing to embed", label)
         return 0
@@ -85,6 +82,7 @@ def embed_and_store(label, transcript, meta):
         docs.append(chunk)
         embs.append(vec.tolist())
         metas.append({
+            "session_id": session_id,
             "video_label": label,
             "chunk_index": i,
             "source_url": meta.get("source_url", ""),
@@ -94,14 +92,14 @@ def embed_and_store(label, transcript, meta):
             "title": meta.get("title", ""),
             "platform": meta.get("platform", ""),
         })
-        ids.append(f"video_{label}_chunk_{i}")
+        ids.append(f"{session_id}_video_{label}_chunk_{i}")
 
     col.upsert(ids=ids, documents=docs, embeddings=embs, metadatas=metas)
-    log.info("stored %d chunks for video %s", len(chunks), label)
+    log.info("stored %d chunks for video %s (session %s)", len(chunks), label, session_id)
     return len(chunks)
 
 
-def query_similar(question, n_results=4):
+def query_similar(question, session_id, n_results=4):
     model = get_model()
     col = get_collection()
 
@@ -110,6 +108,7 @@ def query_similar(question, n_results=4):
     res = col.query(
         query_embeddings=[q_vec],
         n_results=n_results,
+        where={"session_id": session_id},
         include=["documents", "metadatas", "distances"],
     )
 

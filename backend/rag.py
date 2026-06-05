@@ -104,7 +104,7 @@ def get_llm():
 
 
 async def stream_answer(question, session_id):
-    hits = query_similar(question, n_results=4)
+    hits = query_similar(question, session_id, n_results=4)
     context = build_context(hits)
     citations = format_citations(hits)
 

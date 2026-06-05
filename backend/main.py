@@ -9,7 +9,7 @@ from pydantic import BaseModel, field_validator
 from dotenv import load_dotenv
 
 from ingest import ingest_pair, FetchError
-from embedder import embed_and_store, clear_collection
+from embedder import embed_and_store, clear_session_data
 from rag import stream_answer, clear_session
 
 load_dotenv()
@@ -26,6 +26,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# each visitor gets their own workspace (keyed by session_id) so two devices
+# using the site at once don't clobber each other's videos. stored holds the
+# card data per session; the vector chunks are namespaced the same way.
 stored = {}
 
 # pulling + embedding two videos can run well past the cloudflare tunnel's
@@ -35,21 +38,23 @@ stored = {}
 jobs = {}
 
 
-def _run_ingest(job_id, url_a, url_b):
-    global stored
+def _run_ingest(job_id, session_id, url_a, url_b):
     try:
         pair = ingest_pair(url_a, url_b)
         va, vb = pair["video_a"], pair["video_b"]
 
-        clear_collection()
-        n_a = embed_and_store("A", va["transcript"], va["metadata"])
-        n_b = embed_and_store("B", vb["transcript"], vb["metadata"])
+        clear_session_data(session_id)
+        n_a = embed_and_store("A", va["transcript"], va["metadata"], session_id)
+        n_b = embed_and_store("B", vb["transcript"], vb["metadata"], session_id)
 
-        stored = {
+        stored[session_id] = {
             "video_a": {**va["metadata"], "chunks_stored": n_a},
             "video_b": {**vb["metadata"], "chunks_stored": n_b},
         }
-        jobs[job_id] = {"status": "done", "result": {"success": True, **stored}}
+        jobs[job_id] = {
+            "status": "done",
+            "result": {"success": True, "session_id": session_id, **stored[session_id]},
+        }
     except FetchError as e:
         log.error("fetch blocked: %s", e)
         jobs[job_id] = {"status": "error", "detail": str(e)}
@@ -85,11 +90,14 @@ async def health():
 async def ingest(req: IngestRequest):
     log.info("ingest: %s | %s", req.url_a, req.url_b)
     job_id = str(uuid.uuid4())
+    session_id = str(uuid.uuid4())  # the workspace this pair lives in
     jobs[job_id] = {"status": "running"}
     threading.Thread(
-        target=_run_ingest, args=(job_id, req.url_a, req.url_b), daemon=True
+        target=_run_ingest,
+        args=(job_id, session_id, req.url_a, req.url_b),
+        daemon=True,
     ).start()
-    return {"job_id": job_id, "status": "running"}
+    return {"job_id": job_id, "status": "running", "session_id": session_id}
 
 
 @app.get("/ingest/status/{job_id}")
@@ -101,15 +109,19 @@ async def ingest_status(job_id: str):
 
 
 @app.get("/metadata")
-async def metadata():
-    if not stored:
+async def metadata(session_id: str):
+    data = stored.get(session_id)
+    if not data:
         raise HTTPException(status_code=404, detail="No videos ingested yet.")
-    return stored
+    return data
 
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    if not stored:
+    sid = req.session_id
+    # the session id comes from the ingest that loaded this visitor's videos.
+    # no id (or an unknown one) means there's nothing of theirs to chat about.
+    if not sid or sid not in stored:
         raise HTTPException(
             status_code=400,
             detail="Please ingest two videos first via POST /ingest.",
@@ -118,8 +130,6 @@ async def chat(req: ChatRequest):
     q = req.question.strip()
     if not q:
         raise HTTPException(status_code=422, detail="Question cannot be empty.")
-
-    sid = req.session_id or str(uuid.uuid4())
 
     async def gen():
         async for tok in stream_answer(q, sid):

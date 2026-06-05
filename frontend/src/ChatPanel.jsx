@@ -160,7 +160,12 @@ export default function ChatPanel({ ready, sessionId, onSessionChange }) {
         </div>
         {messages.length > 0 && (
           <button
-            onClick={() => { setMessages([]); onSessionChange(null); }}
+            onClick={() => {
+              // wipe the chat history but keep the workspace, so the ingested
+              // videos are still there to ask about after a reset.
+              if (sessionId) fetch(`${API}/session/${sessionId}`, { method: "DELETE" }).catch(() => {});
+              setMessages([]);
+            }}
             className="text-mono text-[9px] tracking-widest text-bone/40 hover:text-red uppercase flex items-center gap-1.5 transition-colors"
             title="Clear"
           >

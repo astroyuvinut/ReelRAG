@@ -155,6 +155,7 @@ export default function App() {
       if (!data) throw new Error("Ingest timed out. youtube may be throttling, try again in a bit.");
 
       setVideoData({ a: data.video_a, b: data.video_b });
+      setSessionId(data.session_id);  // bind chat to this ingest's workspace
       setReady(true);
       setAlert({ type: "success", message: "Pipeline complete. Channel open." });
     } catch (err) {
