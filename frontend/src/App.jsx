@@ -125,16 +125,35 @@ export default function App() {
     setSessionId(null);
 
     try {
-      const res = await fetch(`${API}/ingest`, {
+      // kick off the job — this comes back instantly with an id.
+      const startRes = await fetch(`${API}/ingest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url_a: urlA.trim(), url_b: urlB.trim() }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
+      if (!startRes.ok) {
+        const err = await startRes.json().catch(() => ({ detail: startRes.statusText }));
         throw new Error(err.detail || "Ingest failed");
       }
-      const data = await res.json();
+      const { job_id } = await startRes.json();
+
+      // then just keep asking "done yet?" every couple seconds. each poll is a
+      // tiny request, so a slow fetch never trips the tunnel's 100s timeout.
+      // cap it at ~5 min so a wedged job doesn't poll forever.
+      let data = null;
+      for (let i = 0; i < 150; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const statusRes = await fetch(`${API}/ingest/status/${job_id}`);
+        if (!statusRes.ok) {
+          const err = await statusRes.json().catch(() => ({ detail: statusRes.statusText }));
+          throw new Error(err.detail || "Lost the ingest job");
+        }
+        const job = await statusRes.json();
+        if (job.status === "done") { data = job.result; break; }
+        if (job.status === "error") throw new Error(job.detail || "Ingest failed");
+      }
+      if (!data) throw new Error("Ingest timed out. youtube may be throttling, try again in a bit.");
+
       setVideoData({ a: data.video_a, b: data.video_b });
       setReady(true);
       setAlert({ type: "success", message: "Pipeline complete. Channel open." });

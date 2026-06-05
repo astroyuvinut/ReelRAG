@@ -1,5 +1,6 @@
 import uuid
 import logging
+import threading
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +28,35 @@ app.add_middleware(
 
 stored = {}
 
+# pulling + embedding two videos can run well past the cloudflare tunnel's
+# ~100s request limit when youtube is slow. so /ingest no longer blocks: it
+# kicks the work onto a background thread and hands back a job id the client
+# polls. jobs live in memory and reset on restart, which is fine here.
+jobs = {}
+
+
+def _run_ingest(job_id, url_a, url_b):
+    global stored
+    try:
+        pair = ingest_pair(url_a, url_b)
+        va, vb = pair["video_a"], pair["video_b"]
+
+        clear_collection()
+        n_a = embed_and_store("A", va["transcript"], va["metadata"])
+        n_b = embed_and_store("B", vb["transcript"], vb["metadata"])
+
+        stored = {
+            "video_a": {**va["metadata"], "chunks_stored": n_a},
+            "video_b": {**vb["metadata"], "chunks_stored": n_b},
+        }
+        jobs[job_id] = {"status": "done", "result": {"success": True, **stored}}
+    except FetchError as e:
+        log.error("fetch blocked: %s", e)
+        jobs[job_id] = {"status": "error", "detail": str(e)}
+    except Exception as e:
+        log.error("ingest failed: %s", e)
+        jobs[job_id] = {"status": "error", "detail": f"Ingest error: {e}"}
+
 
 class IngestRequest(BaseModel):
     url_a: str
@@ -53,35 +83,21 @@ async def health():
 
 @app.post("/ingest")
 async def ingest(req: IngestRequest):
-    global stored
     log.info("ingest: %s | %s", req.url_a, req.url_b)
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {"status": "running"}
+    threading.Thread(
+        target=_run_ingest, args=(job_id, req.url_a, req.url_b), daemon=True
+    ).start()
+    return {"job_id": job_id, "status": "running"}
 
-    try:
-        pair = ingest_pair(req.url_a, req.url_b)
-    except FetchError as e:
-        log.error("fetch blocked: %s", e)
-        raise HTTPException(status_code=502, detail=str(e))
-    except Exception as e:
-        log.error("ingest failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Ingest error: {e}")
 
-    va, vb = pair["video_a"], pair["video_b"]
-
-    clear_collection()
-
-    try:
-        n_a = embed_and_store("A", va["transcript"], va["metadata"])
-        n_b = embed_and_store("B", vb["transcript"], vb["metadata"])
-    except Exception as e:
-        log.error("embedding failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Embedding error: {e}")
-
-    stored = {
-        "video_a": {**va["metadata"], "chunks_stored": n_a},
-        "video_b": {**vb["metadata"], "chunks_stored": n_b},
-    }
-
-    return {"success": True, **stored}
+@app.get("/ingest/status/{job_id}")
+async def ingest_status(job_id: str):
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown job id.")
+    return job
 
 
 @app.get("/metadata")
