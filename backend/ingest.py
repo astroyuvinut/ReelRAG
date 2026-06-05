@@ -335,7 +335,15 @@ def ingest_video(url, label):
 
 
 def ingest_pair(url_a, url_b):
-    return {
-        "video_a": ingest_video(url_a, "A"),
-        "video_b": ingest_video(url_b, "B"),
-    }
+    # both videos are independent, so fetch them at the same time. doing them
+    # one after the other took ~2 min for a pair, which blew past the tunnel's
+    # 100s request timeout. running them together keeps it well under.
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        fut_a = pool.submit(ingest_video, url_a, "A")
+        fut_b = pool.submit(ingest_video, url_b, "B")
+        return {
+            "video_a": fut_a.result(),
+            "video_b": fut_b.result(),
+        }

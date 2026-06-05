@@ -25,7 +25,7 @@ services:
     staticPublishPath: ./frontend/dist
     envVars:
       - key: VITE_API_BASE
-        value: https://caught-electric-perfume-yield.trycloudflare.com
+        value: https://frederick-las-cardiovascular-controllers.trycloudflare.com
     routes:
       - type: rewrite
         source: /*
